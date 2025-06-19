@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8" />
+  <title>Финансов Калкулатор</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial;
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 1rem;
+      background: #f9f9f9;
+    }
+    label, input {
+      display: block;
+      margin-bottom: 10px;
+    }
+    input {
+      width: 100%;
+      padding: 5px;
+    }
+    button {
+      padding: 10px;
+      margin-top: 10px;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 10px;
+      background: white;
+    }
+    canvas {
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Финансов Калкулатор</h2>
+
+  <label>Начален капитал (лв): <input type="number" id="startCapital" /></label>
+  <label>Месечен приход (лв): <input type="number" id="monthlyIncome" /></label>
+  <label>Месечни разходи (лв): <input type="number" id="monthlyExpenses" /></label>
+  <label>Годишна инфлация (%): <input type="number" id="inflation" value="5" /></label>
+
+  <label>Сума инвестирана във фонд (лв): <input type="number" id="investedAmount" /></label>
+  <label>Годишна доходност от фонда (%): <input type="number" id="investmentReturn" value="6" /></label>
+
+  <label>Пенсия от първи стълб (лв/месец): <input type="number" id="pension1" value="800" /></label>
+  <label>Пенсия от втори стълб (лв/месец): <input type="number" id="pension2" value="300" /></label>
+
+  <label>Твоята възраст сега: <input type="number" id="currentAge" /></label>
+  <label>Целева възраст (напр. 80): <input type="number" id="targetAge" /></label>
+
+  <button onclick="calculate()">Изчисли</button>
+
+  <div id="result"></div>
+
+  <canvas id="balanceChart" width="600" height="300"></canvas>
+
+  <script>
+    function calculate() {
+      let capital = parseFloat(document.getElementById("startCapital").value);
+      const baseIncome = parseFloat(document.getElementById("monthlyIncome").value);
+      let expenses = parseFloat(document.getElementById("monthlyExpenses").value);
+      const inflationRate = parseFloat(document.getElementById("inflation").value) / 100;
+
+      let invested = parseFloat(document.getElementById("investedAmount").value);
+      const investmentReturn = parseFloat(document.getElementById("investmentReturn").value) / 100;
+
+      const pension1Base = parseFloat(document.getElementById("pension1").value);
+      const pension2 = parseFloat(document.getElementById("pension2").value);
+
+      const currentAge = parseInt(document.getElementById("currentAge").value);
+      const targetAge = parseInt(document.getElementById("targetAge").value);
+
+      const pensionStartAge = 65;
+      const totalMonths = (targetAge - currentAge) * 12;
+
+      const balanceHistory = [];
+      const ageLabels = [];
+
+      let resultText = "";
+      let pension1Monthly = 0;
+
+      let fundsDepleted = false;
+
+      for (let month = 1; month <= totalMonths; month++) {
+        const age = currentAge + month / 12;
+
+        // Актуализиране на пенсии
+        if (age >= pensionStartAge) {
+          pension1Monthly = pension1Base * Math.pow(1 + inflationRate, Math.floor(age - pensionStartAge));
+        }
+
+        const totalIncome = baseIncome + pension1Monthly + (age >= pensionStartAge ? pension2 : 0);
+        const net = totalIncome - expenses;
+
+        if (capital + net >= 0) {
+          capital += net;
+        } else {
+          const shortfall = Math.abs(capital + net);
+          capital = 0;
+
+          if (invested >= shortfall) {
+            invested -= shortfall;
+          } else {
+            invested = 0;
+            fundsDepleted = true;
+            const years = Math.floor(month / 12);
+            const months = month % 12;
+            resultText = `❌ Всички средства ще се изчерпят на възраст ${currentAge + years} г. и ${months} мес.`;
+            break;
+          }
+        }
+
+        // В края на всяка година:
+        if (month % 12 === 0) {
+          invested *= (1 + investmentReturn);
+          expenses *= (1 + inflationRate);
+
+          ageLabels.push(`${Math.floor(age)} г.`);
+          balanceHistory.push((capital + invested).toFixed(2));
+        }
+      }
+
+      if (!fundsDepleted) {
+        const total = (capital + invested).toFixed(2);
+        resultText = `✅ На възраст ${targetAge} ще имаш общо ${total} лв.`;
+      }
+
+      document.getElementById("result").innerText = resultText;
+      drawChart(ageLabels, balanceHistory);
+    }
+
+    function drawChart(labels, data) {
+      const ctx = document.getElementById("balanceChart").getContext("2d");
+      if (window.myChart) window.myChart.destroy();
+      window.myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Общо средства (лв)',
+            data: data,
+            borderColor: 'green',
+            backgroundColor: 'rgba(0,200,0,0.2)',
+            tension: 0.3,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'Сума (лв)' } },
+            x: { title: { display: true, text: 'Възраст' } }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
